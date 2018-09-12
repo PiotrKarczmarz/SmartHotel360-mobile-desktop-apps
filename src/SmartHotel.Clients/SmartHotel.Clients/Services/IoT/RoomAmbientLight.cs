@@ -1,13 +1,14 @@
 ﻿namespace SmartHotel.Clients.Core.Services.IoT
 {
-	public class RoomAmbientLight : RoomTemperatureBase
+	public class RoomAmbientLight : RoomSensorBase
 	{
 		public const string SensorDataType = "Light";
-		private static readonly TemperatureValue DefaultMinimum = new TemperatureValue( 2800, TemperatureTypes.Kelvin );
-		private static readonly TemperatureValue DefaultMaximum = new TemperatureValue( 4600, TemperatureTypes.Kelvin );
-		private static readonly TemperatureValue DefaultValue = new TemperatureValue( 4500, TemperatureTypes.Kelvin );
+	    public static readonly SensorValue DefaultMinimum = new SensorValue(0, SensorTypes.DimmerSwitch);
+        public static readonly SensorValue DefaultMaximum = new SensorValue(100, SensorTypes.DimmerSwitch);
 
-		public RoomAmbientLight( TemperatureValue desired ) : base( DefaultValue, DefaultMinimum, DefaultMaximum )
+	    private static readonly SensorValue DefaultValue = new SensorValue( 80, SensorTypes.DimmerSwitch );
+
+		public RoomAmbientLight( SensorValue desired ) : base( DefaultValue, DefaultMinimum, DefaultMaximum )
 		{
 			Desired = desired;
 		}
@@ -16,7 +17,7 @@
 		{
 		}
 
-		public RoomAmbientLight( TemperatureValue value, TemperatureValue desired ) : base( value, desired, DefaultMinimum, DefaultMaximum )
+		public RoomAmbientLight( SensorValue value, SensorValue desired ) : base( value, desired, DefaultMinimum, DefaultMaximum )
 		{
 		}
 
