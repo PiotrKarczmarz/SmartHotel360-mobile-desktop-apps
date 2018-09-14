@@ -6,8 +6,8 @@ namespace SmartHotel.Clients.Core.Services.IoT
 	{
 		bool UseFakes { get; }
 
-		Task<RoomAmbientLight> GetRoomAmbientLightAsync();
-		Task<RoomTemperature> GetRoomTemperatureAsync();
+		Task<RoomAmbientLight> GetRoomAmbientLightAsync(string token = "");
+		Task<RoomTemperature> GetRoomTemperatureAsync(string token = "");
 	    Task UpdateDesiredAsync(RoomSensorBase roomSensor);
         void StartCheckingRoomSensorData();
 		void StopCheckingRoomSensorData();
