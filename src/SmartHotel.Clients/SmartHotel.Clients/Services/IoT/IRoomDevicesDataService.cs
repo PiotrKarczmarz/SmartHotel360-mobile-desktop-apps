@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 
 namespace SmartHotel.Clients.Core.Services.IoT
 {
@@ -11,5 +12,7 @@ namespace SmartHotel.Clients.Core.Services.IoT
         Task UpdateDesiredAsync(float desiredTemperature, SensorDataType sensorDataType);
         void StartCheckingRoomSensorData();
         void StopCheckingRoomSensorData();
+        bool IsPollingData { get; }
+	    event EventHandler SensorDataChanged;
     }
 }
