@@ -191,13 +191,15 @@ namespace SmartHotel.Clients.Core.ViewModels
             MessagingCenter.Subscribe<Booking>(this, MessengerKeys.BookingRequested, OnBookingRequested);
             MessagingCenter.Subscribe<CheckoutViewModel>(this, MessengerKeys.CheckoutRequested, OnCheckoutRequested);
 
-            _roomDevicesDataService.StartCheckingRoomSensorData(async () => await GetTemperatureAndLight());
+	        _roomDevicesDataService.SensorDataChanged += RoomDevicesDataServiceSensorDataChanged;
+            _roomDevicesDataService.StartCheckingRoomSensorData();
 
             return Task.FromResult(true);
         }
 
-        public Task OnViewDisappearingAsync(VisualElement view)
+	    public Task OnViewDisappearingAsync(VisualElement view)
         {
+	        _roomDevicesDataService.SensorDataChanged -= RoomDevicesDataServiceSensorDataChanged;
             _roomDevicesDataService.StopCheckingRoomSensorData();
 
             return Task.FromResult(true);
@@ -251,5 +253,10 @@ namespace SmartHotel.Clients.Core.ViewModels
         {
             HasBooking = false;
         }
+
+	    private async void RoomDevicesDataServiceSensorDataChanged(object sender, EventArgs e)
+	    {
+		    await GetTemperatureAndLight();
+	    }
     }
 }

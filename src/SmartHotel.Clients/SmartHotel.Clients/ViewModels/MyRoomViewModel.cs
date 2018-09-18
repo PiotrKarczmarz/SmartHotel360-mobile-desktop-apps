@@ -32,11 +32,11 @@ namespace SmartHotel.Clients.Core.ViewModels
         private bool _find;
         private bool _noDisturb;
 
-        private bool _isInitializing;
+	    private bool _isInitialized;
 
-        private readonly DelayedAction _delayedTemperatureChanged;
-        private readonly DelayedAction _delayedLightChanged;
-        private readonly TimeSpan _sliderInertia = TimeSpan.FromSeconds(2);
+	    private readonly TimeSpan _sliderInertia = TimeSpan.FromSeconds( 1 );
+	    private readonly Timer _delayedTemperatureChangedTimer;
+	    private readonly Timer _delayedLightChangedTimer;
 
         private readonly IOpenUriService _openUrlService;
         private readonly IAnalyticService _analyticService;
@@ -52,18 +52,11 @@ namespace SmartHotel.Clients.Core.ViewModels
             _roomDevicesDataService = roomDevicesDataService;
 
 
-            _delayedTemperatureChanged = new DelayedAction(IsRoomDevicesLive, async () =>
-                {
-                    await UpdateRoomTemperature(DesiredTemperature);
-                },
-                 _sliderInertia);
+	        _delayedTemperatureChangedTimer = new Timer( _sliderInertia,
+		        async () => { await UpdateRoomTemperature( DesiredTemperature ); } );
 
-            _delayedLightChanged = new DelayedAction(IsRoomDevicesLive, async
-                    () =>
-                {
-                    await UpdateRoomLight(DesiredAmbientLight);
-                },
-                _sliderInertia);
+	        _delayedLightChangedTimer = new Timer( _sliderInertia,
+		        async () => { await UpdateRoomLight( DesiredAmbientLight ); } );
 
             SetNeed();
         }
@@ -85,12 +78,19 @@ namespace SmartHotel.Clients.Core.ViewModels
             get => _desiredAmbientLight;
             set
             {
-                _roomDevicesDataService.StopCheckingRoomSensorData();
+	            if (Math.Abs(_desiredAmbientLight - value) < double.Epsilon)
+	            {
+		            return;
+	            }
 
-                _desiredAmbientLight = value;
-                OnPropertyChanged();
+	            _desiredAmbientLight = value;
+	            OnPropertyChanged();
 
-                _delayedLightChanged.Pulse();
+	            if ( IsRoomDevicesLive() )
+	            {
+		            _delayedLightChangedTimer.Stop();
+		            _delayedLightChangedTimer.Start();
+	            }
             }
         }
 
@@ -119,12 +119,19 @@ namespace SmartHotel.Clients.Core.ViewModels
             get => _desiredTemperature;
             set
             {
-                _roomDevicesDataService.StopCheckingRoomSensorData();
+	            if (Math.Abs(_desiredTemperature - value) < double.Epsilon)
+	            {
+		            return;
+	            }
 
-                _desiredTemperature = value;
-                OnPropertyChanged();
+	            _desiredTemperature = value;
+	            OnPropertyChanged();
 
-                _delayedTemperatureChanged.Pulse();
+	            if ( IsRoomDevicesLive() )
+	            {
+		            _delayedTemperatureChangedTimer.Stop();
+		            _delayedTemperatureChangedTimer.Start();
+	            }
             }
         }
 
@@ -246,81 +253,78 @@ namespace SmartHotel.Clients.Core.ViewModels
         {
             IsBusy = true;
 
-            _isInitializing = true;
             IsEcoMode = false;
 
-            await GetRoomSenorsData();
+            await GetRoomSensorData(true);
 
             MusicVolume = 45;
             WindowBlinds = 80;
 
-            _isInitializing = false;
             IsBusy = false;
+	        _isInitialized = true;
         }
 
-        private async Task GetRoomSenorsData()
-        {
-            Task<RoomTemperature> roomTemperatureTask = _roomDevicesDataService.GetRoomTemperatureAsync();
-            Task<RoomAmbientLight> roomAmbientLightTask = _roomDevicesDataService.GetRoomAmbientLightAsync();
-            await Task.WhenAll(roomTemperatureTask, roomAmbientLightTask);
+	    private async Task GetRoomSensorData( bool isInitializing = false )
+	    {
+		    RoomTemperature roomTemperature = await _roomDevicesDataService.GetRoomTemperatureAsync();
+		    CurrentTemperature = roomTemperature.Value.RawValue;
 
-            RoomTemperature roomTemperature = roomTemperatureTask.Result;
-            TemperatureMaximum = roomTemperature.Maximum.RawValue;
-            TemperatureMinimum = roomTemperature.Minimum.RawValue;
+		    RoomAmbientLight roomAmbientLight = await _roomDevicesDataService.GetRoomAmbientLightAsync();
+		    CurrentAmbientLight = roomAmbientLight.Value.RawValue;
 
-            CurrentTemperature = roomTemperature.Value.RawValue;
-            DesiredTemperature = roomTemperature.Desired.RawValue;
+		    if ( isInitializing )
+		    {
+			    TemperatureMaximum = roomTemperature.Maximum.RawValue;
+			    TemperatureMinimum = roomTemperature.Minimum.RawValue;
+			    DesiredTemperature = roomTemperature.Desired.RawValue;
 
-            RoomAmbientLight roomAmbientLight = roomAmbientLightTask.Result;
-            AmbientLightMaximum = roomAmbientLight.Maximum.RawValue;
-            AmbientLightMinimum = roomAmbientLight.Minimum.RawValue;
-            CurrentAmbientLight = roomAmbientLight.Value.RawValue;
-            DesiredAmbientLight = roomAmbientLight.Desired.RawValue;
-        }
+			    AmbientLightMaximum = roomAmbientLight.Maximum.RawValue;
+			    AmbientLightMinimum = roomAmbientLight.Minimum.RawValue;
+			    DesiredAmbientLight = roomAmbientLight.Desired.RawValue;
+		    }
+	    }
 
         public Task OnViewAppearingAsync(VisualElement view)
         {
-            StartSensorDataPolling();
+	        _roomDevicesDataService.SensorDataChanged += RoomDevicesDataServiceSensorDataChanged;
+	        _roomDevicesDataService.StartCheckingRoomSensorData();
 
             return Task.FromResult(true);
         }
 
-        private void StartSensorDataPolling()
-        {
-            _roomDevicesDataService?.StartCheckingRoomSensorData(async () => { await GetRoomSenorsData(); });
-        }
-
         public Task OnViewDisappearingAsync(VisualElement view)
         {
+	        _roomDevicesDataService.SensorDataChanged -= RoomDevicesDataServiceSensorDataChanged;
             _roomDevicesDataService.StopCheckingRoomSensorData();
 
             return Task.FromResult(true);
         }
 
+	    private async void RoomDevicesDataServiceSensorDataChanged( object sender, EventArgs e )
+	    {
+		    await GetRoomSensorData();
+	    }
 
         private bool IsRoomDevicesLive()
         {
-            return !_isInitializing && UseRealRoomDevices;
+            return _isInitialized && UseRealRoomDevices;
         }
 
         private async Task UpdateRoomLight(double desiredAmbientLight)
         {
+	        _delayedLightChangedTimer.Stop();
+
             Debug.WriteLine($"UpdateRoomLight: {desiredAmbientLight}");
             await _roomDevicesDataService.UpdateDesiredAsync((float)desiredAmbientLight / 100f, SensorDataType.Light);
-
-            if (!_roomDevicesDataService.IsPollingData)
-                StartSensorDataPolling();
         }
 
         private async Task UpdateRoomTemperature(double desiredTemperature)
         {
-            Debug.WriteLine($"UpdateRoomTemperature: {desiredTemperature}");
+	        _delayedTemperatureChangedTimer.Stop();
+
+			Debug.WriteLine($"UpdateRoomTemperature: {desiredTemperature}");
             await _roomDevicesDataService.UpdateDesiredAsync((float)desiredTemperature, SensorDataType.Temperature);
-
-            if (!_roomDevicesDataService.IsPollingData)
-                StartSensorDataPolling();
         }
-
 
         private void SetAmbient()
         {
