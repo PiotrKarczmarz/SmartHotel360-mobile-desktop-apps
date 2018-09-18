@@ -16,7 +16,6 @@ namespace SmartHotel.Clients.Core.Services.IoT
 		// TODO: Probably best to get this in AppSettings
 		private readonly TimeSpan _sensorDataPollingInterval = TimeSpan.FromSeconds( 5 );
 		private readonly string _roomDevicesApiEndpoint;
-		private readonly string _roomId;
 		private Timer _sensorDataPollingTimer;
 
 		private readonly IRequestService _requestService;
@@ -25,7 +24,11 @@ namespace SmartHotel.Clients.Core.Services.IoT
 		private readonly ConcurrentDictionary<SensorDataType, DeviceSensorData>
 			_currentSensorDataBySensorDataType = new ConcurrentDictionary<SensorDataType, DeviceSensorData>();
 
-		public RoomDevicesDataService( IRequestService requestService, IAuthenticationService authenticationService )
+	    private string _thermostatDeviceId;
+	    private string _lightDeviceId;
+	    private readonly string _roomId;
+
+        public RoomDevicesDataService( IRequestService requestService, IAuthenticationService authenticationService )
 		{
 			_requestService = requestService;
 			_authenticationService = authenticationService;
@@ -37,8 +40,11 @@ namespace SmartHotel.Clients.Core.Services.IoT
 				{
 					throw new Exception( $"{nameof( AppSettings )}.{nameof( AppSettings.RoomId )} must be specified." );
 				}
-				_roomId = AppSettings.RoomId;
-			}
+			_roomId = AppSettings.RoomId;
+		    _thermostatDeviceId = AppSettings.ThermostatDeviceId;
+		    _lightDeviceId = AppSettings.LightDeviceId;
+
+		}
 		}
 
 		public bool UseFakes => string.IsNullOrEmpty( _roomDevicesApiEndpoint );
@@ -125,27 +131,42 @@ namespace SmartHotel.Clients.Core.Services.IoT
 		}
 
 
-		public async Task UpdateDesiredAsync( RoomSensorBase roomSensor )
+		public async Task UpdateDesiredAsync( float desiredTemperature, SensorDataType sensorDataType )
 		{
-			if ( _currentSensorDataBySensorDataType.TryGetValue( roomSensor.SensorDataType,
+		    UriBuilder builder = new UriBuilder( _roomDevicesApiEndpoint );
+		    if ( _currentSensorDataBySensorDataType.TryGetValue( sensorDataType,
 				out DeviceSensorData sensorData ) )
 			{
-				string sensorId = sensorData.SensorId;
+				var sensorId = sensorData.SensorId;
 
-				UriBuilder builder = new UriBuilder( _roomDevicesApiEndpoint );
-				builder.AppendToPath( $"Devices" );
+			    builder.AppendToPath( "Devices" );
 				var uri = builder.ToString();
 
-				var request = new DeviceRequest
+                string methodName;
+			    string deviceId;
+                switch (sensorDataType)
+                {
+                    case SensorDataType.Temperature:
+                        methodName = "SetDesiredTemperature";
+                        deviceId = _thermostatDeviceId;
+                        break;
+                    case SensorDataType.Light:
+                        methodName = "SetDesiredAmbientLight";
+                        deviceId = _lightDeviceId;
+                        break;
+                    default:
+                        throw new NotSupportedException(sensorDataType.ToString());
+                }
+
+                var request = new DeviceRequest
 				{
-					DeviceId = sensorId,
-					// TODO: should MethodName be set ?
-					Value = roomSensor.Desired.RawValue.ToString( CultureInfo.InvariantCulture )
+					DeviceId = deviceId,
+                    MethodName = methodName,
+                    Value = desiredTemperature.ToString( CultureInfo.InvariantCulture )
 				};
 
 				await _requestService.PostAsync( uri, request, _authenticationService.AuthenticatedUser.Token );
 			}
-
 		}
 
 		public void StartCheckingRoomSensorData()
