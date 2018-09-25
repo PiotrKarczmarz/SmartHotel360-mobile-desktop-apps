@@ -83,7 +83,7 @@ namespace SmartHotel.Clients.Core.ViewModels
 		            return;
 	            }
 
-	            _desiredAmbientLight = value;
+	            _desiredAmbientLight = Math.Round(value);
 	            OnPropertyChanged();
 
 	            if ( IsRoomDevicesLive() )
@@ -119,12 +119,12 @@ namespace SmartHotel.Clients.Core.ViewModels
             get => _desiredTemperature;
             set
             {
-	            if (Math.Abs(_desiredTemperature - value) < double.Epsilon)
-	            {
-		            return;
-	            }
+                if (Math.Abs(_desiredTemperature - value) < double.Epsilon)
+                {
+                    return;
+                }
 
-	            _desiredTemperature = value;
+                _desiredTemperature = Math.Round(value);
 	            OnPropertyChanged();
 
 	            if ( IsRoomDevicesLive() )
